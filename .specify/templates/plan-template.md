@@ -31,11 +31,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **Accessibility**: Document how each user story will satisfy WCAG 2.1 AA, including audit scope, tooling, and acceptance evidence owned by the feature team.
-- **Unit Testing**: Enumerate the unit tests that will cover every new or changed code path, plus how failures will be demonstrated before implementation.
-- **Linting & Formatting**: Confirm ESLint and Prettier configurations that apply to this work and record any exception requests with approval justification.
-- **Security Remediation**: Identify the security reviewer/on-call owner and outline the path to remediate newly discovered vulnerabilities within 24 hours.
-- **Decision Records**: Link to the documentation capturing business logic and non-functional rationale (e.g., spec rationale log, ADR) for the scope of this plan.
+[Gates determined based on constitution file]
 
 ## Project Structure
 
@@ -106,3 +102,4 @@ directories captured above]
 |-----------|------------|-------------------------------------|
 | [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
 | [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+

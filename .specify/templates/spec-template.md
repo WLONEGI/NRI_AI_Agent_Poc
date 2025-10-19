@@ -89,22 +89,16 @@
 - **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
-- **FR-006**: User-facing flows MUST comply with WCAG 2.1 AA success criteria, with measurable verification steps captured in this spec.
 
 *Example of marking unclear requirements:*
 
-- **FR-007**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
-- **FR-008**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
+- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
-
-## Rationale Log *(mandatory)*
-
-- **Business Logic Decisions**: [Summarize the reason each business rule exists, who approved it, and the supporting data or stakeholder input.]
-- **Non-Functional Requirements**: [Explain the target metric, why it is necessary, and how compliance will be demonstrated or monitored.]
 
 ## Success Criteria *(mandatory)*
 
@@ -119,3 +113,4 @@
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
