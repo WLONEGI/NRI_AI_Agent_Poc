@@ -53,9 +53,9 @@
 
 **Purpose**: Ensure all tests pass and no regressions introduced
 
-- [ ] T009 Run pytest on services/mcp-server/tests/ to verify all 15 tests pass
-- [ ] T010 Run linting with ruff on modified test files
-- [ ] T011 Commit bug fixes with descriptive commit message
+- [X] T009 Run pytest on services/mcp-server/tests/ to verify all 15 tests pass
+- [X] T010 Run linting with ruff on modified test files
+- [X] T011 Commit bug fixes with descriptive commit message
 
 ---
 
