@@ -70,3 +70,109 @@ def test_search_service_returns_empty_on_embedding_failure(monkeypatch) -> None:
     repo.search_vector_index.assert_not_called()
     assert logged == [("user-1", [], "query")]
     log_repo.record_search.assert_called_once_with(user_id="user-1", query="query", knowledge_ids=[])
+
+
+def test_search_service_filters_personal_and_team_knowledge(monkeypatch) -> None:
+    """Test that search includes both personal and team knowledge filtered by user/team."""
+    repo = MagicMock()
+    repo.find_team_ids.return_value = ["team-sales", "team-eng"]
+    repo.search_vector_index.return_value = [
+        {
+            "knowledge": {
+                "id": "kn-personal",
+                "content": "My personal notes",
+                "type": "personal",
+                "created_at": "2025-10-19T10:00:00Z",
+                "owner_id": "user-1",
+                "owner_team_id": None,
+            },
+            "similarity": 0.95,
+        },
+        {
+            "knowledge": {
+                "id": "kn-team",
+                "content": "Team shared knowledge",
+                "type": "team",
+                "created_at": "2025-10-19T11:00:00Z",
+                "owner_id": None,
+                "owner_team_id": "team-sales",
+            },
+            "similarity": 0.88,
+        },
+    ]
+
+    embedding_client = MagicMock()
+    embedding_client.embed.return_value = [[0.5, 0.5]]
+    monkeypatch.setattr(module, "get_embedding_client", lambda: embedding_client)
+    monkeypatch.setattr(provenance_logger, "log_search_provenance", lambda *args, **kw: None)
+
+    log_repo = MagicMock()
+    service = KnowledgeSearchService(driver=MagicMock(), repository=repo, query_log_repo=log_repo)
+    results = service.search("notes", "user-1", top_k=100)
+
+    assert len(results) == 2
+    assert results[0]["id"] == "kn-personal"
+    assert results[0]["type"] == "personal"
+    assert results[1]["id"] == "kn-team"
+    assert results[1]["type"] == "team"
+    repo.search_vector_index.assert_called_with(
+        embedding=[0.5, 0.5],
+        user_id="user-1",
+        team_ids=["team-sales", "team-eng"],
+        top_k=100,
+    )
+
+
+def test_search_service_respects_top_k_limit(monkeypatch) -> None:
+    """Test that top_k parameter limits results correctly."""
+    repo = MagicMock()
+    repo.find_team_ids.return_value = []
+    repo.search_vector_index.return_value = []
+
+    embedding_client = MagicMock()
+    embedding_client.embed.return_value = [[0.1]]
+    monkeypatch.setattr(module, "get_embedding_client", lambda: embedding_client)
+    monkeypatch.setattr(provenance_logger, "log_search_provenance", lambda *args, **kw: None)
+
+    log_repo = MagicMock()
+    service = KnowledgeSearchService(driver=MagicMock(), repository=repo, query_log_repo=log_repo)
+    service.search("test", "user-1", top_k=50)
+
+    repo.search_vector_index.assert_called_with(
+        embedding=[0.1],
+        user_id="user-1",
+        team_ids=[],
+        top_k=50,
+    )
+
+
+def test_search_service_truncates_long_summaries(monkeypatch) -> None:
+    """Test that summaries are truncated to 160 chars with ellipsis."""
+    long_content = "A" * 200
+    repo = MagicMock()
+    repo.find_team_ids.return_value = []
+    repo.search_vector_index.return_value = [
+        {
+            "knowledge": {
+                "id": "kn-long",
+                "content": long_content,
+                "type": "personal",
+                "created_at": "2025-10-19T00:00:00Z",
+                "owner_id": "user-1",
+            },
+            "similarity": 0.90,
+        }
+    ]
+
+    embedding_client = MagicMock()
+    embedding_client.embed.return_value = [[0.1]]
+    monkeypatch.setattr(module, "get_embedding_client", lambda: embedding_client)
+    monkeypatch.setattr(provenance_logger, "log_search_provenance", lambda *args, **kw: None)
+
+    log_repo = MagicMock()
+    service = KnowledgeSearchService(driver=MagicMock(), repository=repo, query_log_repo=log_repo)
+    results = service.search("test", "user-1")
+
+    assert len(results[0]["summary"]) == 161  # 160 chars + "…"
+    assert results[0]["summary"].endswith("…")
+    assert results[0]["content"] == long_content  # Full content preserved

@@ -7,7 +7,7 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 **Input**: Design documents from `/specs/005-/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Status**: 50/65 tasks complete (76.9%)
+**Status**: 60/65 tasks complete (92.3%)
 
 ---
 
@@ -88,18 +88,18 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 
 ### Tests for User Story 2
 
-- [ ] T042 [P] [US2] Revise KnowledgeSearchService unit tests for vector + filter logic in services/mcp-server/tests/unit/knowledge/test_search_service.py
-- [ ] T043 [P] [US2] Add knowledge reference component tests in apps/ui-streamlit/tests/test_knowledge_references.py
+- [X] T042 [P] [US2] Revise KnowledgeSearchService unit tests for vector + filter logic in services/mcp-server/tests/unit/knowledge/test_search_service.py
+- [X] T043 [P] [US2] Add knowledge reference component tests in apps/ui-streamlit/tests/test_knowledge_references.py
 
 ### Implementation for User Story 2
 
 - [X] T044 [US2] Implement Top-100 vector search (K=100 fixed per FR-009) with personal/team filters in services/mcp-server/src/knowledge/search_service.py
-- [ ] T045 [US2] Extend KnowledgeRepository with search metadata helpers in services/mcp-server/src/knowledge/repository.py
+- [X] T045 [US2] Extend KnowledgeRepository with search metadata helpers in services/mcp-server/src/knowledge/repository.py
 - [X] T046 [US2] Update search API router with parameter validation and error handling in services/mcp-server/src/apis/search_api.py
-- [ ] T047 [US2] Render accessible references table (ID/summary/owner/time) in apps/ui-streamlit/components/knowledge_references.py
+- [X] T047 [US2] Render accessible references table (ID/summary/owner/time) in apps/ui-streamlit/components/knowledge_references.py
 - [X] T048 [US2] Enhance provenance logging for search events in services/mcp-server/src/provenance/provenance_logger.py
-- [ ] T049 [US2] Trigger search + empty-state messaging in apps/ui-streamlit/app.py after successful query run
-- [ ] T050 [US2] Record Story 2 manual accessibility results in tests/accessibility-checklist.md
+- [X] T049 [US2] Trigger search + empty-state messaging in apps/ui-streamlit/app.py after successful query run
+- [X] T050 [US2] Record Story 2 manual accessibility results in tests/accessibility-checklist.md
 
 ---
 
@@ -111,9 +111,9 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 
 ### Tests for User Story 3
 
-- [ ] T051 [P] [US3] Add promotion repository tests in services/mcp-server/tests/unit/knowledge/test_promotion_repository.py
-- [ ] T052 [P] [US3] Expand batch API tests for success/error paths in services/mcp-server/tests/unit/apis/test_batch_api.py
-- [ ] T053 [P] [US3] Add promotion CLI tests in services/mcp-server/tests/unit/batch/test_promote_cli.py
+- [X] T051 [P] [US3] Add promotion repository tests in services/mcp-server/tests/unit/knowledge/test_promotion_repository.py
+- [X] T052 [P] [US3] Expand batch API tests for success/error paths in services/mcp-server/tests/unit/apis/test_batch_api.py
+- [X] T053 [P] [US3] Add promotion CLI tests in services/mcp-server/tests/unit/batch/test_promote_cli.py
 
 ### Implementation for User Story 3
 
@@ -123,7 +123,7 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 - [X] T057 [US3] Wire CLI script with real repository and dry-run support in services/mcp-server/scripts/promote.py
 - [X] T058 [US3] Augment batch execution logging + summary in services/mcp-server/src/batch/promote.py and provenance/batch_hooks.py
 - [X] T059 [US3] Create multi-user promotion E2E scenario in tests/e2e/multi_user_promotion.py
-- [ ] T060 [US3] Record Story 3 manual accessibility/operability results in tests/accessibility-checklist.md
+- [X] T060 [US3] Record Story 3 manual accessibility/operability results in tests/accessibility-checklist.md
 
 ---
 

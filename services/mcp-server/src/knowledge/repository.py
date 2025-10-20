@@ -127,3 +127,101 @@ class KnowledgeRepository:
         )
         records = result[0] if isinstance(result, tuple) else result
         return list(records)
+
+    def get_knowledge_metadata(self, knowledge_id: str) -> Dict[str, Any] | None:
+        """Retrieve metadata for a specific knowledge item including provenance."""
+        result = self._driver.execute_query(
+            """
+            MATCH (k:Knowledge {id: $knowledge_id})
+            OPTIONAL MATCH (k)-[:ATTRIBUTED_TO]->(u:User)
+            OPTIONAL MATCH (k)-[:BELONGS_TO]->(t:Team)
+            OPTIONAL MATCH (k)-[:SYNTHESIZED_FROM]->(ec:ExtractedContent)
+                -[:DERIVED_FROM]->(ds:DataSource)
+                <-[:GENERATED]-(te:ToolExecution)
+            RETURN k AS knowledge,
+                   u.id AS owner_user_id,
+                   t.id AS owner_team_id,
+                   collect(DISTINCT {
+                       tool_execution: te.id,
+                       data_source: ds.id,
+                       extracted_content: ec.id
+                   }) AS provenance_chain
+            """,
+            knowledge_id=knowledge_id,
+        )
+        records = result[0] if isinstance(result, tuple) else result
+        if not records:
+            return None
+
+        record = records[0]
+        knowledge = record.get("knowledge")
+        if not knowledge:
+            return None
+
+        return {
+            "id": knowledge.get("id"),
+            "type": knowledge.get("type"),
+            "content": knowledge.get("content"),
+            "category": knowledge.get("category"),
+            "confidence": knowledge.get("confidence"),
+            "created_at": knowledge.get("created_at"),
+            "tags": knowledge.get("tags", []),
+            "owner": {
+                "user_id": record.get("owner_user_id"),
+                "team_id": record.get("owner_team_id"),
+            },
+            "provenance": record.get("provenance_chain", []),
+        }
+
+    def get_search_statistics(self, user_id: str) -> Dict[str, Any]:
+        """Get search usage statistics for a user."""
+        result = self._driver.execute_query(
+            """
+            MATCH (u:User {id: $user_id})
+            OPTIONAL MATCH (u)-[:OWNS]->(k:Knowledge)
+            OPTIONAL MATCH (u)-[:MEMBER_OF]->(t:Team)<-[:BELONGS_TO]-(tk:Knowledge)
+            WITH u,
+                 count(DISTINCT k) AS personal_count,
+                 count(DISTINCT tk) AS team_count
+            RETURN personal_count,
+                   team_count,
+                   personal_count + team_count AS total_accessible
+            """,
+            user_id=user_id,
+        )
+        records = result[0] if isinstance(result, tuple) else result
+        if not records:
+            return {"personal_count": 0, "team_count": 0, "total_accessible": 0}
+
+        record = records[0]
+        return {
+            "personal_count": record.get("personal_count", 0),
+            "team_count": record.get("team_count", 0),
+            "total_accessible": record.get("total_accessible", 0),
+        }
+
+    def get_recent_searches(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent search queries for a user."""
+        result = self._driver.execute_query(
+            """
+            MATCH (u:User {id: $user_id})-[:PERFORMED]->(q:Query)
+            RETURN q.id AS query_id,
+                   q.text AS query_text,
+                   q.timestamp AS timestamp,
+                   q.result_count AS result_count
+            ORDER BY q.timestamp DESC
+            LIMIT $limit
+            """,
+            user_id=user_id,
+            limit=limit,
+        )
+        records = result[0] if isinstance(result, tuple) else result
+        return [
+            {
+                "query_id": r.get("query_id"),
+                "query_text": r.get("query_text"),
+                "timestamp": r.get("timestamp"),
+                "result_count": r.get("result_count", 0),
+            }
+            for r in records
+        ]
