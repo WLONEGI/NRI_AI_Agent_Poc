@@ -121,8 +121,8 @@ source .venv/bin/activate
 pytest
 
 # Run specific test suite
-pytest tests/unit/
-pytest tests/integration/
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/unit/
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests/integration/
 
 # Run with coverage report
 pytest --cov=services --cov=shared --cov=apps
@@ -290,3 +290,21 @@ Internal PoC - NRI Proprietary
 **Version**: 0.1.0
 **Last Updated**: 2025-10-19
 **Maintainer**: NRI AI Team
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/query | LangGraphエージェント実行・ナレッジ保存 |
+| GET | /api/knowledge/search | 個人＋チームナレッジ検索（Top-100） |
+| POST | /api/batch/promote | 昇格バッチの実行（ドライラン対応） |
+| GET | /healthz | Neo4j ヘルスチェック |
+
+## Performance Benchmark
+
+```bash
+python services/mcp-server/scripts/benchmark_performance.py --include-search --output reports/perf-latest.json
+```
+
+- NF-005 目標: 保存 ≤ 2000ms、検索 ≤ 1500ms
+- 結果は `docs/QA/performance-report.md` に記録し、Slack #ai-agent-perf へ共有

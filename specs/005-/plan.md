@@ -18,7 +18,7 @@ StreamlitベースのUIとLangChain/LangGraphエージェントで収集した�
 -->
 
 **Language/Version**: Python 3.11 (pyproject.toml管理、**必須**: 仮想環境 venv/virtualenv)
-**Primary Dependencies**: Streamlit, LangChain 0.2+, LangGraph, OpenAI SDK, Neo4j Python Driver, python-dotenv, APScheduler (手動トリガー補助), pytest
+**Primary Dependencies**: Streamlit, LangChain 0.2+, LangGraph, OpenAI SDK, Neo4j Python Driver, python-dotenv, pytest, ruff, black; APScheduler (optional - 手動トリガー補助)
 **Storage**: Neo4j 5.x (Vector Index + Graph)、ローカルファイルシステム（入力ファイル）
 **Testing**: pytest + pytest-asyncio、manual E2E checklist
 **Target Platform**: Docker Compose上のローカル開発環境（Streamlit UI + MCP Server + Neo4jコンテナ）
@@ -96,7 +96,4 @@ tests/
 
 *Fill ONLY if Constitution Check has violations that must be justified*
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+**No violations**: All constitution principles are satisfied without exceptions or complexity justifications required for this PoC.
