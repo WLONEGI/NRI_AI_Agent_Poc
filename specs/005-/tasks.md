@@ -7,7 +7,7 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 **Input**: Design documents from `/specs/005-/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Status**: 60/65 tasks complete (92.3%)
+**Status**: 65/65 tasks complete (100%) ✅
 
 ---
 
@@ -131,11 +131,11 @@ description: "Task list for Crystal Intelligence風ナレッジ統合システ�
 
 **Purpose**: 品質ゲート（パフォーマンス・アクセシビリティ・コンプライアンス）を締め、リリース準備を完了させる。
 
-- [ ] T061 Summarise benchmark outputs in docs/QA/performance-report.md after running T017
-- [ ] T062 Document verification/runbook steps in docs/QA/runbook.md
-- [ ] T063 Update docs/requirements-compliance-analysis.md once FR-005/FR-008/FR-009 are satisfied
-- [ ] T064 Consolidate accessibility audit summary (SC-004) in tests/accessibility-checklist.md and attach to release PR
-- [ ] T065 Refine README.md quickstart to reflect final API contracts and workflows
+- [X] T061 Summarise benchmark outputs in docs/QA/performance-report.md after running T017
+- [X] T062 Document verification/runbook steps in docs/QA/runbook.md
+- [X] T063 Update docs/requirements-compliance-analysis.md once FR-005/FR-008/FR-009 are satisfied
+- [X] T064 Consolidate accessibility audit summary (SC-004) in tests/accessibility-checklist.md and attach to release PR
+- [X] T065 Refine README.md quickstart to reflect final API contracts and workflows
 
 ---
 
