@@ -28,3 +28,4 @@ Thumbs.db
 *.sqlite3
 .pytest_cache/
 .mypy_cache/
+sitecustomize.py
