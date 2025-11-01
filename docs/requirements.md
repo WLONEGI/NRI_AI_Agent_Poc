@@ -1,174 +1,288 @@
-Crystal Intelligence風ナレッジ統合システム PoC仕様書
-1. プロジェクト概要
-目的: AIエージェントの業務利用過程で取得した情報を自動的にナレッジ化し、階層的に蓄積・共有するシステムのPoC実装
-検証項目: 技術的実現可能性とアーキテクチャの妥当性
-期間: 3-4週間（Phase3まで完全実装）
-2. システムアーキテクチャ
-User (Streamlit UI)
-    ↓
-LangChain/LangGraph Agent
-    ↓ (MCP Protocol)
-MCP Server
-    ├→ Tools (file_search, web_search, query_knowledge)
-    └→ Knowledge Engine
-        └→ Neo4j (Vector + Graph)
-3. 技術スタック
-レイヤー技術UIStreamlitAIエージェントLangChain/LangGraphLLMGPT-5-mini埋め込みOpenAI text-embedding-3MCPカスタムMCPサーバーデータベースNeo4j (Docker)環境Docker Compose (ローカル)
-4. 機能要件
-4.1 データソース
+# PoC要件定義書テンプレ（MCPナレッジPoC）
 
-ローカルファイル（テキスト、CSV等）
-Web検索
-内部ナレッジベース（Neo4j既存データ）
+> 本テンプレートは、AIエージェント対話から自動的に知識を捕捉・構造化し、Graph＋Vectorで検索・再利用する **MCPサーバ（AWSサーバーレス）** のPoC向け要件定義書です。**太字＝確定事項／_斜体＝TBD（決定待ち）** を推奨表記とします。必要に応じて章を増減してください。
 
-4.2 ナレッジ蓄積
+---
 
-トリガー: AI応答完了の直後（1往復ごと）
-処理: 非同期バックグラウンド実行
-入力データ:
+## ドキュメント情報
 
-ユーザークエリ
-AI応答
-実行トレース（ツール呼び出し履歴）
-データソース（メタデータ + 実際の内容）
-抽出コンテンツ（LLMによる解析結果）
+* 文書タイトル：PoC要件定義書（MCPナレッジPoC）
+* バージョン：v0.1（初稿）
+* 作成日：YYYY-MM-DD
+* 作成者：
+* レビュー／承認：
+* ステータス：ドラフト｜レビュー中｜承認済み
+* 変更履歴：
 
+  | 版   | 日付         | 変更内容 | 作成/変更者 |
+  | --- | ---------- | ---- | ------ |
+  | 0.1 | YYYY-MM-DD | 初版作成 |        |
 
+---
 
-4.3 階層構造
+## 1. 背景・目的
 
-2階層: 個人ナレッジ → チームナレッジ
-アクセス制御: 個人ナレッジは本人のみ、チームナレッジはチーム全員
-検索時: 検索クエリベースで、自分の個人 + チームナレッジを参照
+* 背景：社内AI活用の加速に伴い、**AI対話・ツール実行の過程で生まれるナレッジを自動で捕捉・管理**し、組織学習を促進する基盤が必要。
+* 目的：**MCP接続のAIが社内情報に特化したコンテキストを活用**できるようにし、検索・再利用性を高める。
+* 本PoCで検証する価値：
 
-4.4 自動昇格（集約処理）
+  * **B: 可視化UI（閲覧のみ）**でナレッジの可視確認が可能。
+  * 検索再利用により**回答精度／コンテキスト一致の主観的改善**が体感できる。
 
-方式: 類似度ベースの完全自動
-実行: 定期バッチ処理（例: 1日1回）
-判定基準:
+## 2. スコープ
 
-ベクトル類似度: 0.75以上
-最小貢献者数: 3名以上
-カバレッジ: チームの50%以上
+* 対象機能（含む）：取り込み、検索/再利用、閲覧UI（編集なし）、個人/チーム2層のアクセス制御。
+* 対象外（PoC範囲外）：編集・承認ワークフロー、本番レベル監視/監査ログ、高可用構成、広域スケール試験。
 
+## 3. ゴールと成功指標
 
+* ゴール：**AI対話 → 自動知識化 → 検索/再利用 → 可視化UI（閲覧）**までのデモを成立。
+* KPI/評価：
 
-4.5 エラーハンドリング
+  * 主観評価での**精度/コンテキスト一致の改善**（5段階）。
+  * PoCチーム**10名**が継続利用したいと感じるか。
+  * 体感速度（検索→提示）に実用感があるか。
 
-LLM API失敗: リトライ
-ナレッジ抽出が空: ユーザー指示を基にAIが独自判断で行動
-重複ナレッジ: 別々に保存（統合は自動昇格時）
-データリセット: 不要（間違いも含め全て残す）
+## 4. 想定ユーザー & 利用形態
 
-5. データモデル（Neo4jグラフ構造）
-5.1 ノードタイプ
-cypher// ユーザー・組織
-(:User {id, name, team_id})
-(:Team {id, name})
+* 利用者：**社内PoCチーム10名**
+* クライアント：**MCP対応クライアント**（OpenAI／VS Code拡張／社内ツール）
+* 利用言語：**日本語主体**
 
-// クエリ・実行
-(:Query {id, text, user_id, timestamp})
-(:AgentExecution {id, query_id, agent_model, status, started_at, completed_at})
+## 5. 全体アーキテクチャ（高レベル）
 
-// データソース（PROV Entity）
-(:DataSource {id, type, path/url, content_type, raw_content, metadata, retrieved_at})
+* 実装ランタイム：**AWS Lambda（サーバーレス）**
+* MCPサーバ：**modelcontextprotocol/python-sdk 前提**
+* フロント：SPA（S3+CloudFront）［閲覧専用］
+* 認証/認可：**Amazon Cognito（Auth Code + PKCE）**、Cognitoグループ/IdP属性でチーム付与
+* ネットワーク：**ALB** → VPC内Lambda、**社内IP許可のAllowlist（172.26.138.0/24）**
+* データ：**S3（原本）＋ OpenSearch Serverless（Vector）＋ Neptune Serverless（Graph）**
+* リージョン：**ap-northeast-1**
 
-// ツール実行（PROV Activity）
-(:ToolExecution {id, tool_name, input_query, execution_time_ms, timestamp})
-
-// 抽出コンテンツ
-(:ExtractedContent {id, source_id, content_type, summary, key_facts, extraction_method, confidence, extracted_at})
-
-// ナレッジ
-(:Knowledge {
-  id, type, content, category, 
-  hierarchy_level, owner_id, confidence, 
-  embedding, created_at
-})
-5.2 リレーション（PROV準拠）
-cypher(:User)-[:ASKED]->(:Query)
-(:Query)-[:TRIGGERED]->(:AgentExecution)
-(:AgentExecution)-[:USED {step_number, reasoning}]->(:ToolExecution)
-(:DataSource)-[:WAS_GENERATED_BY]->(:ToolExecution)
-(:ExtractedContent)-[:DERIVED_FROM {extraction_prompt, llm_model}]->(:DataSource)
-(:Knowledge)-[:SYNTHESIZED_FROM {synthesis_method}]->(:ExtractedContent)
-(:Knowledge)-[:ATTRIBUTED_TO]->(:User)
-(:Knowledge)-[:SIMILAR_TO {similarity_score, compared_at}]->(:Knowledge)
+```
+[MCPクライアント] --HTTPS--> [ALB(OIDC/Cognito)]
+                               |
+                               v
+                        [Lambda: API]
+                           |      \
+                       (/ingest)  (/query)
+                           |         |
+                   [前処理: PIIマスク/正規化]
+                           |
+                           v
+                    [S3 原本(JSONL)]
+                           |
+                 [Step Functions：非同期]
+                      |                 \
+                      v                  v
+            [埋め込み/チャンク → OpenSearch]   [NER/関係抽出 → Neptune]
+                       \                /
+                        \---->  [検索UI(閲覧のみ)]
 ```
 
-## 6. 処理フロー
+## 6. 機能要件
 
-### 6.1 リアルタイムナレッジ蓄積
+### 6.1 取り込み（ingest）
+
+* 対象：会話テキスト、**ツール呼び出し・結果**、添付（PDF/画像はTextractで抽出）
+* PII前処理：**Comprehend（英/西）＋日本語はルールベース補完**
+* 保存：S3に原本（JSON Lines）、メタ付与（speaker, sessionId, ts, scope など）
+* 非同期パイプライン：チャンク/埋め込み、NER/関係抽出
+
+### 6.2 検索/再利用（query）
+
+* Vector近傍検索（OpenSearch）で候補抽出
+* Graph近傍（Neptune）で関連補完（任意）
+* MCPへはコンテキスト（snippet＋docId）を返却、UIは詳細閲覧可能
+
+### 6.3 可視化UI（閲覧のみ）
+
+* 検索フォーム、結果一覧、スニペット/メタ、原文ビュー
+* 簡易グラフビュー（ノードリンク、読み取り専用）
+
+### 6.4 アクセス制御（2層）
+
+* スコープ：**個人知識／チーム知識**
+* 公開：**本人操作で即時**／チーム横断アクセスは不可
+* グループ割当：**Cognitoグループ/IdP属性を自動反映**
+
+## 7. インターフェース仕様
+
+### 7.1 MCPツール（Tool）
+
+* `search_knowledge`
+
+  * 入力：`{ q, topK, scope:"personal|team", filters? }`
+  * 出力：`{ hits:[{docId, snippet, score, meta}], relatedGraph? }`
+* `capture_interaction`
+
+  * 入力：`{ sessionId, speaker, text?, toolCall?, toolResult?, scope, metadata? }`
+  * 出力：`{ status:"accepted", docId }`
+* `promote_to_team`
+
+  * 入力：`{ docId }` → 出力：`{ status:"ok" }`
+* （任意）`get_graph_neighbors`
+
+  * 入力：`{ entity, hops=1 }` → 出力：`{ nodes, edges }`
+
+> ※ Toolは**可変パラメータのアクション**、大きな本文は **MCP Resource** で公開（例：`kb://doc/{id}`）。
+
+### 7.2 REST API（ALB経由, JWT必須）
+
+| Method | Path     | 説明                 | 主なパラメータ                                           |
+| ------ | -------- | ------------------ | ------------------------------------------------- |
+| POST   | /ingest  | 取り込み受理（非同期処理起動）    | sessionId, speaker, text/toolCalls/results, scope |
+| POST   | /query   | 検索（Vector±Graph補完） | q, topK, scope, filters                           |
+| POST   | /promote | 個人→チーム公開           | docId                                             |
+
+**Auth**：Authorization: Bearer <JWT>（Cognito発行）。JWK検証、`sub`/`groups` をスコープ判定に利用。
+
+#### 7.2.1 リクエスト/レスポンス例（サンプル）
+
+```jsonc
+// POST /query (request)
+{
+  "q": "運用フロー",
+  "topK": 8,
+  "scope": "team",
+  "filters": {"toolType": "jira"}
+}
 ```
-1. ユーザー入力
-2. LangChain Agentが処理
-   ├→ MCP Tool: file_search → DataSource取得
-   ├→ MCP Tool: web_search → DataSource取得
-   └→ MCP Tool: query_knowledge → 既存ナレッジ参照
-3. AIが情報統合・ナレッジ抽出（Agent内部処理）
-4. AI応答をユーザーに表示
-5. MCP Tool: save_knowledge → Neo4jに保存
-   - プロベナンス完全記録
-   - ベクトル埋め込み生成
+
+```jsonc
+// /query (response)
+{
+  "hits": [
+    {"docId": "doc_123", "snippet": "…", "score": 0.82, "meta": {"sessionId": "s1", "ts": "2025-11-01T09:00:00Z"}}
+  ],
+  "relatedGraph": {"nodes": [], "edges": []}
+}
 ```
 
-### 6.2 定期バッチ処理（自動昇格）
+## 8. データ要件
+
+### 8.1 スキーマ（最小）
+
+* **S3 原本（JSON Lines）**
+
+  ```jsonc
+  {"docId":"…","ownerId":"u1","teamId":"t1","scope":"personal|team",
+   "text":"…","lang":"ja","piiMasked":true,
+   "toolCall":{…},"toolResult":{…},
+   "sessionId":"…","createdAt":"…"}
+  ```
+* **OpenSearch（index: knowledge_chunks）**
+
+  * `id, ownerId, teamId, scope, text, embedding(vector), sessionId, toolType, ts`
+* **Neptune（Property Graph）**
+
+  * Node：`Entity(type,name,normName)`, `Doc(id,kind)`
+  * Edge：`MENTIONS(Doc→Entity)`, `RELATES(Entity↔Entity,relType)`, `DERIVED_FROM`
+
+### 8.2 埋め込みモデル
+
+* **Amazon Bedrock** を使用（日本語対応優先）
+
+### 8.3 PIIマスキング
+
+* 方式：**Comprehend（英/西）＋日本語は正規表現/辞書で補完**
+* 対象：氏名/メール/電話/住所/社員ID など基本PII
+* 可逆性：**不可逆マスク**を基本（原文はS3原本で暗号化保存）
+
+### 8.4 データ保持・ライフサイクル
+
+* 保持期間：**90日**（S3 Lifecycle設定で自動削除）／削除方針：PoC終了時に全消去
+
+## 9. セキュリティ/プライバシー
+
+* 認証：**Cognito（Auth Code + PKCE）**
+* 認可：JWT `sub`/`groups` で個人/チームを判定
+* ネットワーク：**社内IP Allowlist（172.26.138.0/24）**、VPC内通信
+* 暗号化：S3/Neptune/OpenSearch は **KMS暗号化**
+* 監査：CloudWatch最小限の監査ログ（PoC範囲）
+
+## 10. 非機能要件
+
+* パフォーマンス：**~10 rps** 目安、Lambdaタイムアウト短め、重処理は非同期
+* 可用性：単AZ可（PoC）
+* 観測性：最低限のメトリクス/ログ（詳細基盤は対象外）
+* コスト：**月5万円以内**（最小キャパで開始、データ量を抑制）
+
+## 11. 運用・環境
+
+* 環境：Dev / PoC（単一でも可）
+* デプロイ：IaC（*TBD: CDK/Terraform*）
+* リリース：段階ロールアウト（*TBD*）
+* バックアップ：S3バージョニング、Neptune/OSはスナップショット（最小）
+
+## 12. テスト/検証計画
+
+* 機能テスト：取り込み→検索→閲覧のE2E
+* 評価テスト：**前後比較（10名×3タスク）**／5段階主観評価
+* セキュリティテスト：認証・スコープ越境の無いこと
+* 性能テスト：軽負荷（~10 rps）
+
+## 13. リスク・制約・前提
+
+* 日本語PIIの検出精度（ルール補完）
+* OpenSearch/Neptuneの固定コスト（容量/設定最小で運用）
+* OAuthトークン取得フロー（CLI補助）
+
+## 14. 変更管理・課題管理
+
+* 変更申請：テンプレ（影響範囲・ロールバック手順含む）
+* 課題トラッキング：Jira/Issues 等（リンク *TBD*）
+* **決定事項（クリティカル解消）**：
+
+  1. **社内IP帯 CIDR**：172.26.138.0/24（ALB Allowlistに設定）
+  2. **IdP連携**：Cognito単独（User Pool）
+  3. **埋め込みモデル**：Amazon Bedrock
+  4. **添付取り込み**：Textractをパイプラインに組み込み
+  5. **保持期間（TTL）**：90日（S3 Lifecycleで自動削除）
+
+## 15. 受け入れ基準（Acceptance Criteria）
+
+* [ ] MCPクライアントからの取り込みが成功し、S3原本に保存される
+* [ ] ベクトル検索で意図した候補が **topK** 内に表示される
+* [ ] UIでスニペット/原文/メタが閲覧できる
+* [ ] （任意）グラフビューで主要関係が1ホップ表示される
+* [ ] 個人/チームのスコープが期待どおりに制御される
+* [ ] 主観評価で**精度/一致**が改善した（閾値：平均+1ポイント 等 *TBD*）
+
+## 付録A：APIスキーマ雛形
+
+```jsonc
+{
+  "paths": {
+    "/ingest": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}},
+    "/query": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}},
+    "/promote": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}}
+  }
+}
 ```
-1. 個人ナレッジをチームごとに収集
-2. ベクトル類似度を計算
-3. 類似度 > 0.75 かつ 3名以上が保持
-4. チームナレッジとして新規作成
-5. 元の個人ナレッジは保持（削除しない）
-7. MCPサーバーツール定義
-ツール名説明入力出力file_searchローカルファイル検索query, file_types{path, content, metadata}web_searchWeb検索・取得query{url, content, metadata}query_team_knowledge既存ナレッジ検索query, user_id[{knowledge}, ...]save_knowledgeナレッジ保存{knowledge, provenance}{id, status}
-8. ユーザー・チーム管理
 
-方式: YAMLファイルでハードコード
-例:
+## 付録B：MCP Tool 定義雛形（JSON Schema）
 
-yamlusers:
-  - id: user1
-    name: 田中太郎
-    team: team_sales
-  - id: user2
-    name: 佐藤花子
-    team: team_sales
+```jsonc
+{
+  "name": "search_knowledge",
+  "description": "Vector+Graphでナレッジ検索",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "q": {"type": "string"},
+      "topK": {"type": "integer", "default": 8},
+      "scope": {"type": "string", "enum": ["personal", "team"]},
+      "filters": {"type": "object"}
+    },
+    "required": ["q", "scope"]
+  }
+}
+```
 
-teams:
-  - id: team_sales
-    name: 営業チーム
-9. 成功基準
-シナリオ:
+## 付録C：用語集（抜粋）
 
-3人のユーザーが同じトピックでAI利用
-各自に個人ナレッジが蓄積
-定期バッチ実行
-チームナレッジが自動生成
-4人目が質問 → チームナレッジを参照して回答
-
-達成条件: 上記が動作すればPoC成功
-10. スコープ外
-
-❌ 3階層以上（部・会社レベル）
-❌ 高度なアクセス制御（ロールベース等）
-❌ UIの作り込み
-❌ 本番環境向けスケーラビリティ
-❌ 詳細なモニタリング・ログ
-❌ ナレッジの削除・編集機能
-
-11. 実装フェーズ
-Phase 1 (1週目): 基本実装
-
-ローカルファイル検索
-簡易トレーシング（ツール名と結果のみ）
-
-Phase 2 (2週目): 拡張
-
-Web検索統合
-詳細トレーシング（推論過程含む）
-
-Phase 3 (3週目): 完成
-
-複数データソース統合
-完全自動集約処理
-矛盾検出・解決
+* MCP（Model Context Protocol）：AIクライアントとツール/リソースを接続するプロトコル
+* Vector検索：埋め込みベクトルによる近傍検索
+* Graph：エンティティと関係をノード・エッジで表現
+* スコープ：個人/チームのアクセス境界
