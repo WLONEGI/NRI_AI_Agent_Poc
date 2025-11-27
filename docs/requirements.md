@@ -1,289 +1,455 @@
-# PoC要件定義書テンプレ（MCPナレッジPoC）
 
-> 本テンプレートは、AIエージェント対話から自動的に知識を捕捉・構造化し、Graph＋Vectorで検索・再利用する **MCPサーバ（AWSサーバーレス）** のPoC向け要件定義書です。**太字＝確定事項／_斜体＝TBD（決定待ち）** を推奨表記とします。必要に応じて章を増減してください。
+## 1. 概要
+
+### 1.1 背景
+
+社内で利用する AI エージェント（ChatGPT）との対話の中には、手順やルール、設計方針など、後から再利用可能な「ナレッジ」が多く含まれている。
+現状これらは会話ログの中に埋もれており、体系的に蓄積・検索して再利用する仕組みがない。
+
+### 1.2 目的
+
+本要件定義書は、以下を満たす **ローカル専用ナレッジメモリ MCP サーバ** の要件を定義する。
+
+* ChatGPT から MCP 経由で呼び出し可能
+* 会話の中から重要なナレッジだけを Markdown 形式で保存
+* 保存済みナレッジをキーワードベースで検索・参照できる
+
+### 1.3 コンセプト
+
+* 仕組みの基本思想は Serena MCP の「メモリ機能」を模倣する
+
+  * `write_memory / read_memory / list_memories / delete_memory` の API 群
+  * その裏側で Markdown + YAML によるメモリファイルを管理
+* Embedding（ベクトル埋め込み）は使わず、**完全ローカル + テキストファイルのみ**で実現する。
 
 ---
 
-## ドキュメント情報
+## 2. システム全体像
 
-* 文書タイトル：PoC要件定義書（MCPナレッジPoC）
-* バージョン：v0.1（初稿）
-* 作成日：YYYY-MM-DD
-* 作成者：
-* レビュー／承認：
-* ステータス：ドラフト｜レビュー中｜承認済み
-* 変更履歴：
+### 2.1 全体イメージ
 
-  | 版   | 日付         | 変更内容 | 作成/変更者 |
-  | --- | ---------- | ---- | ------ |
-  | 0.1 | YYYY-MM-DD | 初版作成 |        |
+* ChatGPT（MCP クライアント）から、ローカルで起動した MCP サーバへ接続する。
+* MCP サーバは、ローカルディスク上の `<memory_root>` 配下にメモリファイル群を保持する。
+* ChatGPT は、会話の中で重要だと判断したタイミングで `write_memory` を呼び、
+  記憶を参照したいときに `search_memories` / `read_memory` を呼び出す。
+
+### 2.2 利用シナリオ
+
+1. **対話からのナレッジ保存**
+
+   * ユーザと ChatGPT が業務の話をしている中で、
+     LLM が「これは長期的に再利用すべき」と判断した場合のみ `write_memory` を呼ぶ。
+   * 1 回の会話から複数のメモリ（例：`architecture`, `billing-flow` 等）を作成してよい。
+
+2. **ナレッジ検索・参照**
+
+   * ユーザの質問に回答する際、事前に `search_memories` で関連メモリを検索し、
+     必要なものを `read_memory` で取得してから回答を生成する。
 
 ---
 
-## 1. 背景・目的
+## 3. スコープ
 
-* 背景：社内AI活用の加速に伴い、**AI対話・ツール実行の過程で生まれるナレッジを自動で捕捉・管理**し、組織学習を促進する基盤が必要。
-* 目的：**MCP接続のAIが社内情報に特化したコンテキストを活用**できるようにし、検索・再利用性を高める。
-* 本PoCで検証する価値：
+### 3.1 対象範囲（本システムで実現するもの）
 
-  * **B: 可視化UI（閲覧のみ）**でナレッジの可視確認が可能。
-  * 検索再利用により**回答精度／コンテキスト一致の主観的改善**が体感できる。
+* ChatGPT から MCP 経由で呼び出せる **メモリ操作 API 群** の提供
 
-## 2. スコープ
+  * メモリの作成・更新（write）
+  * メモリの取得（read）
+  * メモリ一覧の取得（list）
+  * メモリ削除（delete）
+  * メモリ全文検索（search）
+* メモリの永続化
 
-* 対象機能（含む）：取り込み、検索/再利用、閲覧UI（編集なし）、個人/チーム2層のアクセス制御。
-* 対象外（PoC範囲外）：編集・承認ワークフロー、本番レベル監視/監査ログ、高可用構成、広域スケール試験。
+  * Markdown（`.md`）＋ YAML（front matter / index）による保存
+* 検索機能
 
-## 3. ゴールと成功指標
+  * Embedding を利用しないキーワードベース全文検索
+  * 日本語を主対象とした検索
 
-* ゴール：**AI対話 → 自動知識化 → 検索/再利用 → 可視化UI（閲覧）**までのデモを成立。
-* KPI/評価：
+### 3.2 非対象範囲（本フェーズでは扱わないもの）
 
-  * 主観評価での**精度/コンテキスト一致の改善**（5段階）。
-  * PoCチーム**10名**が継続利用したいと感じるか。
-  * 体感速度（検索→提示）に実用感があるか。
+* Web UI / GUI によるナレッジ閲覧・管理
+* 認証・認可
+* 既存ナレッジ基盤（Confluence / Notion 等）との統合
+* ベクタ DB / Embedding モデルによる高精度セマンティック検索
+* ネットワーク越しの共有サーバ（あくまでローカル前提）
 
-## 4. 想定ユーザー & 利用形態
+---
 
-* 利用者：**社内PoCチーム10名**
-* クライアント：**MCP対応クライアント**（OpenAI／VS Code拡張／社内ツール）
-* 利用言語：**日本語主体**
+## 4. 前提条件・制約
 
-## 5. 全体アーキテクチャ（高レベル）
+### 4.1 実行環境
 
-* 実装ランタイム：**AWS Lambda（サーバーレス）**
-* MCPサーバ：**modelcontextprotocol/python-sdk 前提**
-* フロント：SPA（S3+CloudFront）［閲覧専用］**Vite + React**
-* 認証/認可：**Amazon Cognito（Auth Code + PKCE）**、Cognitoグループ/IdP属性でチーム付与
-* ネットワーク：**ALB** → VPC内Lambda、**社内IP許可のAllowlist（172.26.138.0/24）**
-* データ：**S3（原本）＋ OpenSearch Serverless（Vector）＋ Neptune Serverless（Graph）**
-* リージョン：**ap-northeast-1**
+* MCP クライアント: ChatGPT
+* MCP サーバ:
 
+  * MCP Python SDK（`mcp.server.fastmcp.FastMCP`）を使用
+  * 通信方式: `stdio`（標準入出力）による接続
+* OS:
+
+  * macOS / Linux を優先サポート
+* 言語／ランタイム:
+
+  * Python 3.10 以上
+
+### 4.2 ストレージ
+
+* ローカルファイルシステムのみ使用
+* ファイル形式:
+
+  * ナレッジ本文: Markdown（`.md`）
+  * インデックス・設定: YAML（`.yaml`）
+* 文字コード: UTF-8
+
+### 4.3 ネットワーク・セキュリティ
+
+* 外部 API へのアクセスなし（完全ローカル完結）
+* アプリケーションレベルの認証・認可は行わない
+  → 利用者は当該マシンにログイン可能なユーザに限定
+
+---
+
+## 5. 機能要件
+
+### 5.1 MCP サーバ本体
+
+* サーバ名: `local-memory-store`（案）
+* 起動:
+
+  * ローカルコマンドとして実行し、ChatGPT から MCP サーバとして登録
+* 機能:
+
+  * MCP Tools として、以下のメモリ操作 API を提供する
+    `write_memory`, `read_memory`, `list_memories`, `delete_memory`, `search_memories`
+
+---
+
+### 5.2 メモリ操作 API 詳細
+
+#### 5.2.1 write_memory
+
+**目的**
+名前付きメモリの作成・更新（追記または上書き）を行う。
+
+**入力項目（要求）**
+
+* `memory_name`（string, 必須）
+
+  * メモリを一意に識別するキー
+* `content_markdown`（string, 必須）
+
+  * メモリ本文（Markdown）。front matter を含まない想定（front matter はサーバ側で生成）
+* `tags`（list[string], 任意）
+
+  * 自由タグ（0 個以上）
+* `source_session_id`（string, 任意）
+
+  * 生成元となった ChatGPT セッションの ID
+* `source_user_id`（string, 任意）
+
+  * 利用ユーザ識別子
+* `append`（bool, 任意・デフォルト: false）
+
+  * true: 既存メモリがあれば末尾に追記
+  * false: 既存メモリがあれば本文を上書き
+
+**出力項目（要求）**
+
+* `memory_name`
+* `path`（メモリファイルのパス）
+* `created`（新規作成かどうかのフラグ）
+* `updated_at`
+
+**動作要件**
+
+1. `memory_name` に対応するファイルパスを決定する。
+2. 対応する Markdown ファイルが存在する場合：
+
+   * `append=false` の場合：本文を置き換え、`updated_at` 更新
+   * `append=true` の場合：本文末尾に追記し、`updated_at` 更新
+3. 存在しない場合：
+
+   * 新規に Markdown ファイルを作成し、`created_at` / `updated_at` を設定
+4. front matter にメタ情報（memory_name, title, tags, source 等）を付与・更新する。
+5. `index.yaml` にメタ情報（memory_name, title, path, tags等）を登録・更新する。
+6. 異常時にはエラーコード・メッセージを返す。
+
+---
+
+#### 5.2.2 read_memory
+
+**目的**
+指定した `memory_name` のメモリを取得する。
+
+**入力項目**
+
+* `memory_name`（string, 必須）
+
+**出力項目**
+
+* `memory_name`
+* `metadata`
+
+  * `title`
+  * `created_at`
+  * `updated_at`
+  * `tags`
+  * `source`（session_id, user_id など）
+* `content_markdown`
+
+  * front matter を含む Markdown 全文、または本文のみ（仕様としてどちらかに統一）
+
+**動作要件**
+
+1. `index.yaml` から `memory_name` に対応するファイルパスを取得。
+2. 対応ファイルの存在を確認し、内容を読み込む。
+3. front matter と本文をパースし、出力形式に整形する。
+4. `memory_name` に対応するメモリが存在しない場合、適切なエラーを返す。
+
+---
+
+#### 5.2.3 list_memories
+
+**目的**
+保存済みメモリの一覧を取得する。
+
+**入力項目**
+
+* `prefix`（string, 任意）
+
+  * `memory_name` のプレフィクスでフィルタ
+* `tag_filter`（list[string], 任意）
+
+  * 指定タグを含むメモリのみ返す
+* `limit`（int, 任意・デフォルト: 50）
+
+**出力項目**
+
+メモリごとのメタ情報のリスト：
+
+* `memory_name`
+* `title`
+* `created_at`
+* `updated_at`
+* `tags`
+
+**動作要件**
+
+1. `index.yaml` の全項目をロード。
+2. `prefix` 指定がある場合、`memory_name` を前方一致でフィルタ。
+3. `tag_filter` 指定がある場合、すべての指定タグを含むメモリのみ返す（AND 条件想定）。
+4. `limit` 件まで返却。
+
+---
+
+#### 5.2.4 delete_memory
+
+**目的**
+指定メモリを削除する。
+
+**入力項目**
+
+* `memory_name`（string, 必須）
+
+**出力項目**
+
+* `memory_name`
+* `deleted`（bool）
+* `message`（任意の補足）
+
+**動作要件**
+
+1. `memory_name` に対応するファイルの存在を確認。
+2. サーバとしての方針を以下から選択（要決定）：
+
+   * 物理削除：Markdown ファイルを削除し、`index.yaml` からも削除
+   * 論理削除：front matter に `deleted: true` を追加し、`index.yaml` にも削除フラグをセット
+3. 削除済みメモリは `search_memories` や `list_memories` の結果から除外する。
+
+---
+
+#### 5.2.5 search_memories
+
+**目的**
+Embedding を使わず、キーワードベースでメモリを全文検索し、関連度の高いメモリを返す。
+
+**入力項目**
+
+* `query`（string, 必須）
+* `top_k`（int, 任意・デフォルト: 5）
+* `tag_filter`（list[string], 任意）
+
+**出力項目**
+
+類似度順に並んだメモリ情報のリスト：
+
+* `memory_name`
+* `title`
+* `score`（0〜1 目安）
+* `tags`
+* `snippet`（本文の一部抜粋）
+
+**動作要件**
+
+1. `query` をトークン化（日本語を含むので簡易ルール or 形態素解析）。
+2. `index.yaml` をもとに対象メモリを列挙。
+
+   * `tag_filter` 指定があれば、それを満たすメモリのみ検索対象。
+3. 各メモリについて：
+
+   * Markdown ファイルを読み込み、タイトル・見出し・本文をトークン化。
+   * クエリトークンとのマッチ数を元にスコアを算出。
+
+     * タイトル命中 > 見出し命中 > 本文命中 のように重みづけ。
+4. スコア順にソートし、上位 `top_k` 件を返す。
+5. 一定件数以上のメモリが存在する場合、性能のためにキャッシュ等の検討余地あり（将来拡張）。
+
+---
+
+## 6. データ要件
+
+### 6.1 ディレクトリ構造
+
+```text
+<memory_root>/
+  memories/
+    YYYY/
+      MM/
+        YYYYMMDD-<slug>.md
+  index.yaml
+  config.yaml
+  logs/
+    memory-mcp.log
 ```
-[MCPクライアント] --HTTPS--> [ALB(OIDC/Cognito)]
-                               |
-                               v
-                        [Lambda: API]
-                           |      \
-                       (/ingest)  (/query)
-                           |         |
-                   [前処理: PIIマスク/正規化]
-                           |
-                           v
-                    [S3 原本(JSONL)]
-                           |
-                 [Step Functions：非同期]
-                      |                 \
-                      v                  v
-            [埋め込み/チャンク → OpenSearch]   [NER/関係抽出 → Neptune]
-                       \                /
-                        \---->  [検索UI(閲覧のみ)]
+
+* `<memory_root>` は設定ファイルまたは環境変数から指定。
+* 日付単位のディレクトリ分割（`YYYY/MM/`）でファイル数を分散。
+
+### 6.2 メモリファイル構造（Markdown）
+
+```markdown
+---
+memory_name: "billing-flow"
+title: "請求処理ワークフローの確定版"
+created_at: "2025-11-24T09:15:00+09:00"
+updated_at: "2025-11-24T09:20:00+09:00"
+source:
+  type: "chat"
+  agent: "chatgpt"
+  session_id: "abc123"
+  user_id: "u001"
+tags:
+  - "経理"
+  - "請求処理"
+importance: "normal"
+version: 1
+---
+
+## 要約
+
+...
+
+## 詳細
+
+...
 ```
 
-## 6. 機能要件
+* `tags` は自由タグのみ。
+* `importance` は将来の検索スコア補正などに利用可能。
 
-### 6.1 取り込み（ingest）
+### 6.3 インデックスファイル（index.yaml）
 
-* 対象：会話テキスト、**ツール呼び出し・結果**、添付（PDF/画像はTextractで抽出）
-* PII前処理：**Comprehend（英/西）＋日本語はルールベース補完**
-* 保存：S3に原本（JSON Lines）、メタ付与（speaker, sessionId, ts, scope など）
-* 非同期パイプライン：チャンク/埋め込み、NER/関係抽出
-
-### 6.2 検索/再利用（query）
-
-* Vector近傍検索（OpenSearch）で候補抽出
-* Graph近傍（Neptune）で関連補完（任意）
-* MCPへはコンテキスト（snippet＋docId）を返却、UIは詳細閲覧可能
-
-### 6.3 可視化UI（閲覧のみ）
-
-* 検索フォーム、結果一覧、スニペット/メタ、原文ビュー
-* 簡易グラフビュー（**react-force-graph採用**、読み取り専用）
-
-### 6.4 アクセス制御（2層）
-
-* スコープ：**個人知識／チーム知識**
-* 公開：**本人操作で即時**／チーム横断アクセスは不可
-* グループ割当：**Cognitoグループ/IdP属性を自動反映**
-
-## 7. インターフェース仕様
-
-### 7.1 MCPツール（Tool）
-
-* `search_knowledge`
-
-  * 入力：`{ q, topK, scope:"personal|team", filters? }`
-  * 出力：`{ hits:[{docId, snippet, score, meta}], relatedGraph? }`
-* `capture_interaction`
-
-  * 入力：`{ sessionId, speaker, text?, toolCall?, toolResult?, scope, metadata? }`
-  * 出力：`{ status:"accepted", docId }`
-* `promote_to_team`
-
-  * 入力：`{ docId }` → 出力：`{ status:"ok" }`
-* （任意）`get_graph_neighbors`
-
-  * 入力：`{ entity, hops=1 }` → 出力：`{ nodes, edges }`
-
-> ※ Toolは**可変パラメータのアクション**、大きな本文は **MCP Resource** で公開（例：`kb://doc/{id}`）。
-
-### 7.2 REST API（ALB経由, JWT必須）
-
-| Method | Path     | 説明                 | 主なパラメータ                                           |
-| ------ | -------- | ------------------ | ------------------------------------------------- |
-| POST   | /ingest  | 取り込み受理（非同期処理起動）    | sessionId, speaker, text/toolCalls/results, scope |
-| POST   | /query   | 検索（Vector±Graph補完） | q, topK, scope, filters                           |
-| POST   | /promote | 個人→チーム公開           | docId                                             |
-
-**Auth**：Authorization: Bearer <JWT>（Cognito発行）。JWK検証、`sub`/`groups` をスコープ判定に利用。
-
-#### 7.2.1 リクエスト/レスポンス例（サンプル）
-
-```jsonc
-// POST /query (request)
-{
-  "q": "運用フロー",
-  "topK": 8,
-  "scope": "team",
-  "filters": {"toolType": "jira"}
-}
+```yaml
+items:
+  - memory_name: "architecture"
+    title: "システム全体構成の概要"
+    path: "memories/2025/11/20251124-architecture.md"
+    created_at: "2025-11-24T09:00:00+09:00"
+    updated_at: "2025-11-24T09:10:00+09:00"
+    tags: ["システム構成"]
+  - memory_name: "billing-flow"
+    title: "請求処理ワークフローの確定版"
+    path: "memories/2025/11/20251124-billing-flow.md"
+    created_at: "2025-11-24T09:15:00+09:00"
+    updated_at: "2025-11-24T09:20:00+09:00"
+    tags: ["経理", "請求処理"]
 ```
 
-```jsonc
-// /query (response)
-{
-  "hits": [
-    {"docId": "doc_123", "snippet": "…", "score": 0.82, "meta": {"sessionId": "s1", "ts": "2025-11-01T09:00:00Z"}}
-  ],
-  "relatedGraph": {"nodes": [], "edges": []}
-}
-```
+* 書き換え時は一時ファイルに出力 → アトミックリネームで上書きし、破損を防止。
+* `deleted` フラグを導入する場合はここに記録。
 
-## 8. データ要件
+### 6.4 設定ファイル（config.yaml）
 
-### 8.1 スキーマ（最小）
+* `<memory_root>` パス（省略可能、デフォルトは実行ディレクトリ配下）
+* ログ出力先
+* 検索実装に関するパラメータ（必要であれば）
 
-* **S3 原本（JSON Lines）**
+  * トークナイザ種別
+  * タイトル・本文への重み
 
-  ```jsonc
-  {"docId":"…","ownerId":"u1","teamId":"t1","scope":"personal|team",
-   "text":"…","lang":"ja","piiMasked":true,
-   "toolCall":{…},"toolResult":{…},
-   "sessionId":"…","createdAt":"…"}
-  ```
-* **OpenSearch（index: knowledge_chunks）**
+---
 
-  * `id, ownerId, teamId, scope, text, embedding(vector), sessionId, toolType, ts`
-* **Neptune（Property Graph）**
+## 7. 非機能要件
 
-  * Node：`Entity(type,name,normName)`, `Doc(id,kind)`
-  * Edge：`MENTIONS(Doc→Entity)`, `RELATES(Entity↔Entity,relType)`, `DERIVED_FROM`
+### 7.1 性能
 
-### 8.2 埋め込みモデル
+* 想定規模
 
-* **Amazon Bedrock** を使用（日本語対応優先）
+  * メモリ件数: 数千件程度
+  * 同時利用: 1 ユーザ〜少数（ローカル用途）
+* 目標レスポンス
 
-### 8.3 PIIマスキング
+  * `write_memory`: 通常 1 秒以内
+  * `read_memory`: 通常 0.5 秒以内
+  * `search_memories`: 数千件規模で 1〜2 秒以内
 
-* 方式：**Comprehend（英/西）＋日本語は正規表現/辞書で補完**
-* 対象：氏名/メール/電話/住所/社員ID など基本PII
-* 可逆性：**不可逆マスク**を基本（原文はS3原本で暗号化保存）
+### 7.2 可用性・信頼性
 
-### 8.4 データ保持・ライフサイクル
+* ローカルツールとして利用するため 24x7 高可用性は要求しない。
+* ただし以下は担保する：
 
-* 保持期間：**90日**（S3 Lifecycle設定で自動削除）／削除方針：PoC終了時に全消去
+  * index.yaml / メモリファイルの更新時にアトミックな書き換えで破損を防止
+  * 例外発生時にファイルが中途半端な状態にならないよう配慮
 
-## 9. セキュリティ/プライバシー
+### 7.3 セキュリティ
 
-* 認証：**Cognito（Auth Code + PKCE）**
-* 認可：JWT `sub`/`groups` で個人/チームを判定
-* ネットワーク：**社内IP Allowlist（172.26.138.0/24）**、VPC内通信
-* 暗号化：S3/Neptune/OpenSearch は **KMS暗号化**
-* 監査：CloudWatch最小限の監査ログ（PoC範囲）
+* アプリケーションレベルの認証・認可なし。
+* 保存されるメモリ内容に機密情報・個人情報が含まれうることを明示し、
+  PC のログイン制御・ディスク暗号化等は運用ルールで対応。
 
-## 10. 非機能要件
+### 7.4 拡張性
 
-* パフォーマンス：**~10 rps** 目安、Lambdaタイムアウト短め、重処理は非同期
-* 可用性：単AZ可（PoC）
-* 観測性：最低限のメトリクス/ログ（詳細基盤は対象外）
-* コスト：**月5万円以内**（最小キャパで開始、データ量を抑制）
+* 将来の拡張を想定した設計とする：
 
-## 11. 運用・環境
+  * 内部の検索実装を Embedding + ベクタ検索に差し替え可能
+  * index.yaml を別ストレージ（RDB など）に移行可能
+  * HTTP ベースの MCP トランスポートへの変更（オプション）
 
-* 環境：Dev / PoC（単一でも可）
-* 開発：**ローカル環境からAWSリソースへの接続（ハイブリッド開発）を許容**
-* デプロイ：IaC（**AWS CDK / TypeScript**）
-* リリース：**All-at-once（一括更新）**
-* バックアップ：S3バージョニング、Neptune/OSはスナップショット（最小）
+### 7.5 運用・ログ
 
-## 12. テスト/検証計画
+* ログ出力
 
-* 機能テスト：取り込み→検索→閲覧のE2E
-* 評価テスト：**前後比較（10名×3タスク）**／5段階主観評価
-* セキュリティテスト：認証・スコープ越境の無いこと
-* 性能テスト：軽負荷（~10 rps）
+  * 出力先ディレクトリ: `<memory_root>/logs/`
+  * ログファイル: `memory-mcp.log`
+  * 記録内容:
 
-## 13. リスク・制約・前提
+    * ツール呼び出し（ツール名、開始・終了時刻、処理時間）
+    * `write_memory` 呼び出し件数・メモリ名
+    * エラー時のスタックトレース
+* バックアップ
 
-* 日本語PIIの検出精度（ルール補完）
-* OpenSearch/Neptuneの固定コスト（容量/設定最小で運用）
-* OAuthトークン取得フロー：**ローカル補助スクリプト（auth-helper）により、ブラウザ認証→設定ファイル自動更新を行い、ユーザ負担を最小化する**
+  * `<memory_root>` 以下を OS 側のバックアップ対象とする（Git 管理も可）
 
-## 14. 変更管理・課題管理
+---
 
-* 変更申請：テンプレ（影響範囲・ロールバック手順含む）
-* 課題トラッキング：Jira/Issues 等（リンク *TBD*）
-* **決定事項（クリティカル解消）**：
+## 8. ChatGPT との連携要件（概要）
 
-  1. **社内IP帯 CIDR**：172.26.138.0/24（ALB Allowlistに設定）
-  2. **IdP連携**：Cognito単独（User Pool）
-  3. **埋め込みモデル**：Amazon Bedrock
-  4. **添付取り込み**：Textractをパイプラインに組み込み
-  5. **保持期間（TTL）**：90日（S3 Lifecycleで自動削除）
+* ChatGPT 側の MCP 設定に、当 MCP サーバの起動コマンドを登録する。
+* システムプロンプト（ガイドライン）の例：
 
-## 15. 受け入れ基準（Acceptance Criteria）
+  * 長期的に役立つ知識がまとまった場合のみ `write_memory` を使用すること。
+  * 回答の前に、必要に応じて `search_memories` を行い、関連メモリを利用すること。
+  * 1 つの会話から複数のメモリを作成してよいこと。
 
-* [ ] MCPクライアントからの取り込みが成功し、S3原本に保存される
-* [ ] ベクトル検索で意図した候補が **topK** 内に表示される
-* [ ] UIでスニペット/原文/メタが閲覧できる
-* [ ] （任意）グラフビューで主要関係が1ホップ表示される
-* [ ] 個人/チームのスコープが期待どおりに制御される
-* [ ] 主観評価で**利用者の半数以上（5名以上）が『検索精度が向上した』と回答すること**
-
-## 付録A：APIスキーマ雛形
-
-```jsonc
-{
-  "paths": {
-    "/ingest": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}},
-    "/query": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}},
-    "/promote": {"post": {"requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}}}
-  }
-}
-```
-
-## 付録B：MCP Tool 定義雛形（JSON Schema）
-
-```jsonc
-{
-  "name": "search_knowledge",
-  "description": "Vector+Graphでナレッジ検索",
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      "q": {"type": "string"},
-      "topK": {"type": "integer", "default": 8},
-      "scope": {"type": "string", "enum": ["personal", "team"]},
-      "filters": {"type": "object"}
-    },
-    "required": ["q", "scope"]
-  }
-}
-```
-
-## 付録C：用語集（抜粋）
-
-* MCP（Model Context Protocol）：AIクライアントとツール/リソースを接続するプロトコル
-* Vector検索：埋め込みベクトルによる近傍検索
-* Graph：エンティティと関係をノード・エッジで表現
-* スコープ：個人/チームのアクセス境界
+---

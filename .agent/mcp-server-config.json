@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "local-memory-store": {
+            "command": "/Users/negishi/develop/NRI_AI_Agent_Poc/.venv/bin/python",
+            "args": [
+                "/Users/negishi/develop/NRI_AI_Agent_Poc/src/memory_mcp/main.py"
+            ]
+        }
+    }
+}
